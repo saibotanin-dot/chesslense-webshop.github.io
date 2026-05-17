@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ChessLense Pro - Strategic Chess Analytics from Vienna. See the ideas behind the moves.">
+    <title>ChessLense | Analytics for Club Players</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root {
+            --brand-dark: #0f172a;
+            --brand-panel: #1e293b;
+            --brand-accent: #38bdf8;
+            --board-light: #ebecd0;
+            --board-dark: #779556;
+        }
+        body {
+            background-color: var(--brand-dark);
+            color: #f8fafc;
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+            line-height: 1.6;
+        }
+
+        *:focus-visible {
+            outline: 3px solid var(--brand-accent);
+            outline-offset: 3px;
+            border-radius: 6px;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up { animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        .chessboard-container {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+            border: 6px solid #27272a;
+            border-radius: 6px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            background-color: #27272a;
+        }
+
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            aspect-ratio: 1;
+            width: 100%;
+        }
+
+        .square {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .light { background-color: var(--board-light); }
+        .dark { background-color: var(--board-dark); }
+
+        .piece {
+            width: 100%;
+            height: 100%;
+            background-size: 85%;
+            background-repeat: no-repeat;
+            background-position: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.3));
+        }
+
+        .wp { background-image: url('https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg'); }
+        .wn { background-image: url('https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg'); }
+        .wb { background-image: url('https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg'); }
+        .wr { background-image: url('https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg'); }
+        .wq { background-image: url('https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg'); }
+        .wk { background-image: url('https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg'); }
+
+        .bp { background-image: url('https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg'); }
+        .bn { background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg'); }
+        .bb { background-image: url('https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg'); }
+        .br { background-image: url('https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg'); }
+        .bq { background-image: url('https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg'); }
+        .bk { background-image: url('https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'); }
+
+        @keyframes moveE4 {
+            0%, 20% { transform: translateY(0); z-index: 20; }
+            40%, 80% { transform: translateY(-200%); z-index: 20; }
+            100% { transform: translateY(0); z-index: 20; }
+        }
+        .e2-pawn {
+            animation: moveE4 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            z-index: 20;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background-color: var(--brand-accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid white;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+            position: relative;
+            flex-shrink: 0;
+        }
+        .logo-icon::after {
+            content: '';
+            position: absolute;
+            bottom: -6px; right: -6px;
+            width: 14px; height: 4px;
+            background: white;
+            transform: rotate(45deg);
+            border-radius: 2px;
+        }
+
+        details > summary { list-style: none; outline: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        details[open] summary ~ * { animation: fadeUp 0.3s ease-out; }
+    </style>
+</head>
+<body class="antialiased selection:bg-sky-400 selection:text-slate-900 overflow-x-hidden">
+
+<div class="fixed top-1/2 right-0 transform -translate-y-1/2 bg-sky-400 w-2 h-24 rounded-l-md shadow-[0_0_15px_rgba(56,189,248,0.6)] z-50 pointer-events-none" aria-hidden="true" title="ChessLense Position Mark"></div>
+
+<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-sky-400 text-slate-900 px-6 py-3 rounded-lg font-bold z-[200] shadow-xl">
+    Skip to main content
+</a>
+
+<header class="border-b border-slate-800 sticky top-0 bg-slate-900/90 backdrop-blur-md z-40">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+
+        <div class="logo-container">
+            <div class="logo-icon">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg" class="w-7 h-7 object-contain" alt="ChessLense Logo">
+            </div>
+            <span class="text-2xl font-extrabold tracking-tighter text-white uppercase pt-1">CHESS<span class="text-sky-400">LENSE</span></span>
+        </div>
+
+        <nav class="hidden md:block">
+            <ul class="flex space-x-8 text-sm font-semibold text-slate-300">
+                <li><a href="#features" class="hover:text-sky-400 transition">Features</a></li>
+                <li><a href="#brand" class="hover:text-sky-400 transition">Our Story</a></li>
+                <li><a href="#legal" class="hover:text-sky-400 transition">Legal & Privacy</a></li>
+                <li><a href="#contact" class="hover:text-sky-400 transition">Contact</a></li>
+            </ul>
+        </nav>
+
+        <button onclick="document.getElementById('premiumModal').classList.remove('hidden')" class="bg-sky-400 text-slate-900 px-6 py-2.5 rounded-full font-bold text-sm hover:bg-sky-300 transition shadow-[0_0_15px_rgba(56,189,248,0.3)] hover:shadow-[0_0_25px_rgba(56,189,248,0.5)]">
+            Get Pro
+        </button>
+    </div>
+</header>
+
+<main id="main-content">
+    <section class="max-w-7xl mx-auto px-6 py-20 lg:py-32 grid lg:grid-cols-2 gap-16 items-center">
+
+        <div class="animate-fade-up">
+            <div class="inline-block bg-sky-400/10 text-sky-400 font-medium text-xs px-4 py-1.5 rounded-full mb-6 border border-sky-400/20">
+                Proudly created in Vienna, Austria
+            </div>
+            <h1 class="text-5xl lg:text-7xl font-extrabold mb-8 leading-tight text-white tracking-tight">
+                See the <span class="text-sky-400 relative">ideas<svg class="absolute w-full h-3 -bottom-1 left-0 text-sky-400/30" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M0 5 Q 50 10 100 5" stroke="currentColor" stroke-width="4" fill="transparent"/></svg></span><br>behind the moves.
+            </h1>
+            <p class="text-slate-400 text-lg md:text-xl mb-12 leading-relaxed max-w-lg">
+                We translate raw engine data into human strategic concepts. Designed specifically for club players who want to understand the "why", not just the evaluation score.
+            </p>
+            <div class="flex flex-wrap gap-4">
+                <button onclick="document.getElementById('premiumModal').classList.remove('hidden')" class="bg-sky-400 text-slate-900 px-8 py-4 rounded-full font-bold hover:bg-sky-300 shadow-xl transition focus-visible">
+                    Start Analyzing
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full flex justify-center animate-fade-up" style="animation-delay: 0.2s;">
+            <div class="chessboard-container">
+                <div class="chessboard" aria-label="Starting chess position with pawn moving to e4">
+
+                    <div class="square light"><div class="piece br"></div></div>
+                    <div class="square dark"><div class="piece bn"></div></div>
+                    <div class="square light"><div class="piece bb"></div></div>
+                    <div class="square dark"><div class="piece bq"></div></div>
+                    <div class="square light"><div class="piece bk"></div></div>
+                    <div class="square dark"><div class="piece bb"></div></div>
+                    <div class="square light"><div class="piece bn"></div></div>
+                    <div class="square dark"><div class="piece br"></div></div>
+
+                    <div class="square dark"><div class="piece bp"></div></div>
+                    <div class="square light"><div class="piece bp"></div></div>
+                    <div class="square dark"><div class="piece bp"></div></div>
+                    <div class="square light"><div class="piece bp"></div></div>
+                    <div class="square dark"><div class="piece bp"></div></div>
+                    <div class="square light"><div class="piece bp"></div></div>
+                    <div class="square dark"><div class="piece bp"></div></div>
+                    <div class="square light"><div class="piece bp"></div></div>
+
+                    <div class="square light"></div><div class="square dark"></div><div class="square light"></div><div class="square dark"></div>
+                    <div class="square light"></div><div class="square dark"></div><div class="square light"></div><div class="square dark"></div>
+
+                    <div class="square dark"></div><div class="square light"></div><div class="square dark"></div><div class="square light"></div>
+                    <div class="square dark"></div><div class="square light"></div><div class="square dark"></div><div class="square light"></div>
+
+                    <div class="square light"></div><div class="square dark"></div><div class="square light"></div><div class="square dark"></div>
+                    <div class="square light"></div><div class="square dark"></div><div class="square light"></div><div class="square dark"></div>
+
+                    <div class="square dark"></div><div class="square light"></div><div class="square dark"></div><div class="square light"></div>
+                    <div class="square dark"></div><div class="square light"></div><div class="square dark"></div><div class="square light"></div>
+
+                    <div class="square light"><div class="piece wp"></div></div>
+                    <div class="square dark"><div class="piece wp"></div></div>
+                    <div class="square light"><div class="piece wp"></div></div>
+                    <div class="square dark"><div class="piece wp"></div></div>
+                    <div class="square light"><div class="piece wp e2-pawn"></div></div>
+                    <div class="square dark"><div class="piece wp"></div></div>
+                    <div class="square light"><div class="piece wp"></div></div>
+                    <div class="square dark"><div class="piece wp"></div></div>
+
+                    <div class="square dark"><div class="piece wr"></div></div>
+                    <div class="square light"><div class="piece wn"></div></div>
+                    <div class="square dark"><div class="piece wb"></div></div>
+                    <div class="square light"><div class="piece wq"></div></div>
+                    <div class="square dark"><div class="piece wk"></div></div>
+                    <div class="square light"><div class="piece wb"></div></div>
+                    <div class="square dark"><div class="piece wn"></div></div>
+                    <div class="square light"><div class="piece wr"></div></div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="bg-slate-800/30 py-24 border-y border-slate-800 text-center">
+        <div class="max-w-7xl mx-auto px-6">
+            <h2 class="text-3xl md:text-4xl font-bold mb-16 text-white">Designed for your improvement</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 hover:border-sky-400/50 transition duration-300">
+                    <div class="text-4xl mb-6">🎯</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Pattern Recognition</h3>
+                    <p class="text-slate-400 leading-relaxed text-sm">We highlight weak color complexes and tactical vulnerabilities directly on the board.</p>
+                </div>
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 hover:border-sky-400/50 transition duration-300">
+                    <div class="text-4xl mb-6">🧠</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Friendly Explanations</h3>
+                    <p class="text-slate-400 leading-relaxed text-sm">Our AI acts like a friend sitting next to you, explaining *why* your move was a blunder in plain English.</p>
+                </div>
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 hover:border-sky-400/50 transition duration-300">
+                    <div class="text-4xl mb-6">☁️</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Cloud Repertoire</h3>
+                    <p class="text-slate-400 leading-relaxed text-sm">Save your opening analyses securely in the cloud. Access them from your phone anywhere.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="brand" class="max-w-7xl mx-auto px-6 py-24">
+        <div class="grid lg:grid-cols-2 gap-16 items-center">
+
+            <div class="order-2 lg:order-1 relative">
+                <div class="absolute inset-0 bg-sky-500/20 rounded-3xl translate-x-4 translate-y-4 blur-sm z-0"></div>
+                <img src="https://images.unsplash.com/photo-1555448248-2571daf6344b?auto=format&fit=crop&w=1000&q=80" alt="Group of friends collaborating" class="relative z-10 rounded-3xl shadow-2xl border border-slate-700 object-cover aspect-square">
+            </div>
+
+            <div class="order-1 lg:order-2">
+                <h2 class="text-4xl font-bold mb-6 text-white">Our Story & Brand</h2>
+                <p class="text-slate-300 leading-relaxed mb-8 text-lg">
+                    ChessLense Analytics GmbH started as a <strong class="text-sky-400">group of passionate friends in Vienna, Austria</strong>. We wanted software that could actually explain the *ideas* behind the moves rather than just cold numbers. So, we built it.
+                </p>
+
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-lg">
+                    <h3 class="font-bold text-sky-400 mb-6 tracking-widest uppercase text-xs">Intellectual Property & Trademarks</h3>
+
+                    <div class="flex items-start gap-5 mb-6 pb-6 border-b border-slate-800">
+                        <div class="logo-icon">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg" class="w-7 h-7 object-contain" alt="">
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-sm mb-1">1. Word-Graphic Mark</h4>
+                            <p class="text-slate-400 text-sm">Combines "CHESSLENSE" with our stylized knight-lens icon (a blue circle with a handle).</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="text-white font-bold text-sm mb-1">2. Word Mark</h4>
+                            <p class="text-slate-400 text-sm">The text "CHESSLENSE" is protected as a standalone word mark.</p>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-sm mb-1">3. Position Mark</h4>
+                            <p class="text-slate-400 text-sm">A specific sky-blue tab (Hex #38bdf8) placed on the right edge of our software UI. (Visible on the right side of this screen).</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-500 italic">
+                        Registered Nice Classes: 9 (Software), 41 (Education), 42 (SaaS).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="legal" class="bg-slate-900 py-24 border-y border-slate-800">
+        <div class="max-w-4xl mx-auto px-6">
+            <h2 class="text-3xl font-bold mb-4 text-center text-white">Legal, Privacy & Compliance</h2>
+            <p class="text-center text-slate-400 mb-12 text-sm">Professional transparency in accordance with Austrian and EU law.</p>
+
+            <div class="space-y-6">
+
+                <details class="group bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-white font-bold hover:bg-slate-700/50 transition focus-visible focus:bg-slate-700">
+                        <span class="flex items-center gap-3"><span class="text-sky-400 text-xl">📄</span> End User License Agreement (EULA)</span>
+                        <span class="transition-transform group-open:-rotate-180 text-sky-400">▼</span>
+                    </summary>
+                    <div class="p-6 pt-0 text-slate-300 text-sm border-t border-slate-700 mt-2 space-y-5 leading-relaxed bg-slate-800">
+                        <p class="italic text-slate-400">Last Updated: May 2026</p>
+                        <h4 class="text-white font-bold text-base mt-4">1. Acceptance of Terms</h4>
+                        <p>By accessing or using the ChessLense Pro application ("Software"), you agree to be bound by the terms of this End User License Agreement ("EULA"). If you do not agree to the terms of this EULA, do not use the Software.</p>
+
+                        <h4 class="text-white font-bold text-base">2. Grant of License</h4>
+                        <p>Subject to your continuous compliance with this EULA and payment of applicable subscription fees, ChessLense Analytics GmbH ("Company") grants you a revocable, non-exclusive, non-transferable, limited license to access and use the Software solely for your personal, non-commercial chess education and analysis.</p>
+
+                        <h4 class="text-white font-bold text-base">3. Restrictions on Use</h4>
+                        <p>You may not: (a) decompile, reverse engineer, disassemble, attempt to derive the source code of, or decrypt the Software; (b) make any modification, adaptation, improvement, translation, or derivative work from the Software; (c) violate any applicable laws or regulations in connection with your access or use of the Software; (d) remove, alter, or obscure any proprietary notice (including any notice of copyright or trademark) of the Company; (e) use the Software for any revenue generating endeavor, commercial enterprise, or other purpose for which it is not designed or intended.</p>
+
+                        <h4 class="text-white font-bold text-base">4. Intellectual Property Rights</h4>
+                        <p>The Software, including without limitation all copyrights, patents, trademarks, trade secrets, algorithms (specifically the "Idea-Translation Algorithm"), user interface designs, and other intellectual property rights are, and shall remain, the sole and exclusive property of ChessLense Analytics GmbH.</p>
+
+                        <h4 class="text-white font-bold text-base">5. Disclaimer of Warranties</h4>
+                        <p>THE SOFTWARE IS PROVIDED TO YOU "AS IS" AND WITH ALL FAULTS AND DEFECTS WITHOUT WARRANTY OF ANY KIND. To the maximum extent permitted under applicable law, the Company expressly disclaims all warranties, whether express, implied, statutory, or otherwise. The Company provides no warranty that the Software will meet your requirements, achieve any intended results, operate without interruption, or be completely error-free. The Company does not guarantee the absolute correctness of any chess move evaluation or strategic analysis provided by the Software.</p>
+
+                        <h4 class="text-white font-bold text-base">6. Limitation of Liability</h4>
+                        <p>IN NO EVENT SHALL CHESSLENSE ANALYTICS GMBH BE LIABLE FOR ANY CONSEQUENTIAL, INCIDENTAL, INDIRECT, EXEMPLARY, SPECIAL, OR PUNITIVE DAMAGES. This explicitly includes, but is not limited to: lost tournament prize money, loss of official Elo rating points, loss of prestige, or emotional distress resulting from reliance on the Software's evaluations or blundering a chess piece. The Company's total liability to you for any damages arising out of or related to this EULA will not exceed the amount you paid to the Company for the Software in the twelve (12) months preceding the event giving rise to the claim.</p>
+
+                        <h4 class="text-white font-bold text-base">7. Governing Law</h4>
+                        <p>This EULA and your use of the Software are governed by the laws of Austria, excluding its conflicts of law rules. The exclusive jurisdiction for any disputes shall be the Commercial Court of Vienna.</p>
+                    </div>
+                </details>
+
+                <details class="group bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-white font-bold hover:bg-slate-700/50 transition focus-visible focus:bg-slate-700">
+                        <span class="flex items-center gap-3"><span class="text-sky-400 text-xl">🔒</span> Privacy Policy (GDPR Compliance)</span>
+                        <span class="transition-transform group-open:-rotate-180 text-sky-400">▼</span>
+                    </summary>
+                    <div class="p-6 pt-0 text-slate-300 text-sm border-t border-slate-700 mt-2 space-y-5 leading-relaxed bg-slate-800">
+                        <p class="italic text-slate-400">Last Updated: May 2026. This Privacy Policy explains how ChessLense Analytics GmbH collects, uses, and discloses your information.</p>
+
+                        <h4 class="text-white font-bold text-base mt-4">1. Data Collection and Usage</h4>
+                        <p>We collect personal data only when strictly necessary for the operation of our services. When you create an account, we collect your full name and email address to manage your subscription and authenticate your identity (Legal basis: Art. 6(1)(b) GDPR - Performance of a Contract).</p>
+
+                        <h4 class="text-white font-bold text-base">2. Handling of Payment and Bank Data</h4>
+                        <p><strong>ChessLense Analytics GmbH explicitly does not process, transmit, or store your bank details, credit card numbers, or sensitive financial information on our servers.</strong> We utilize a PCI-DSS Level 1 compliant third-party payment processor (Stripe) to handle all financial transactions. When you enter your payment information during the checkout process, the data is encrypted and sent directly from your browser to Stripe. We only receive a secure token confirming the success of the transaction and the last four digits of the card for billing reference purposes.</p>
+
+                        <h4 class="text-white font-bold text-base">3. User-Generated Content (PGN Files)</h4>
+                        <p>Any Portable Game Notation (PGN) files you upload for analysis are securely transmitted using TLS encryption. These files are processed on our servers located in Frankfurt, Germany. We do not sell your game data to third parties. Anonymized move data may be aggregated to improve our heuristic engine.</p>
+
+                        <h4 class="text-white font-bold text-base">4. Cookies and Analytics</h4>
+                        <p>We respect your privacy by avoiding intrusive tracking. We strictly use only essential session cookies required to maintain your login state. We do not use third-party marketing, retargeting, or advertising cookies. For internal performance monitoring, we employ a self-hosted, privacy-first analytics tool that hashes IP addresses immediately, ensuring no individual user can be tracked across the web.</p>
+
+                        <h4 class="text-white font-bold text-base">5. Contact Form Submissions</h4>
+                        <p>Information submitted through our support contact form (name, email, and message content) is temporarily stored in our ticketing system solely for the purpose of resolving your inquiry. This data is routinely purged 90 days after the ticket is closed.</p>
+
+                        <h4 class="text-white font-bold text-base">6. Your Rights Under GDPR</h4>
+                        <p>Under the General Data Protection Regulation, you have the following rights regarding your personal data:</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li>The right to access (Art. 15 GDPR)</li>
+                            <li>The right to rectification (Art. 16 GDPR)</li>
+                            <li>The right to erasure / "Right to be forgotten" (Art. 17 GDPR)</li>
+                            <li>The right to restrict processing (Art. 18 GDPR)</li>
+                            <li>The right to data portability (Art. 20 GDPR)</li>
+                        </ul>
+                        <p>To exercise any of these rights, please contact our Data Protection Officer at privacy@chesslense-mock.at. We will respond to your request within 30 days.</p>
+                    </div>
+                </details>
+
+                <details class="group bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-white font-bold hover:bg-slate-700/50 transition focus-visible focus:bg-slate-700">
+                        <span class="flex items-center gap-3"><span class="text-sky-400 text-xl">🌐</span> Accessibility Statement</span>
+                        <span class="transition-transform group-open:-rotate-180 text-sky-400">▼</span>
+                    </summary>
+                    <div class="p-6 pt-0 text-slate-300 text-sm border-t border-slate-700 mt-2 space-y-5 leading-relaxed bg-slate-800">
+                        <p>ChessLense Analytics GmbH is committed to digital inclusion. This website is fully compliant with <strong>WCAG 2.2 Level AA</strong> guidelines.</p>
+                        <ul class="list-disc pl-5 mt-2 space-y-2">
+                            <li><strong>Visual:</strong> Slate/Sky color scheme verified via <em>WAVE tool</em> for > 4.5:1 contrast.</li>
+                            <li><strong>Keyboard:</strong> Full tab-key navigation with visible focus rings.</li>
+                            <li><strong>Semantics:</strong> Strict use of HTML5 landmarks (header, main, footer) for screen readers.</li>
+                        </ul>
+                    </div>
+                </details>
+
+            </div>
+        </div>
+    </section>
+
+    <section id="contact" class="max-w-7xl mx-auto px-6 py-24 grid md:grid-cols-2 gap-12">
+
+        <div class="bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl">
+            <h2 class="text-3xl font-bold mb-8 text-white border-b border-slate-800 pb-4">Legal Notice <span class="text-lg font-normal text-slate-400">(Impressum)</span></h2>
+            <div class="text-slate-400 text-sm space-y-5 leading-relaxed">
+                <p class="text-xs text-sky-400 uppercase tracking-widest font-bold">Disclosure according to § 25 Media Act & § 5 ECG:</p>
+
+                <div>
+                    <strong class="text-white block text-lg mb-1">ChessLense Analytics GmbH</strong>
+                    Stephansplatz 1, 1010 Vienna, Austria
+                </div>
+
+                <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <strong class="text-white block mb-1">CEO:</strong>
+                    Tobias Heinz Feldhammer<br>
+                    Email: office@chesslense-mock.at<br>
+                    Tel: +43 1 234 5678
+                </div>
+
+                <div>
+                    <ul class="space-y-1 mt-1">
+                        <li><strong>Registry No:</strong> FN 123456x</li>
+                        <li><strong>Court of Jurisdiction:</strong> Commercial Court Vienna</li>
+                        <li><strong>VAT-ID:</strong> ATU12345678</li>
+                        <li><strong>Membership:</strong> WKÖ, Economic Chamber Vienna (UBIT)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-sky-400 text-slate-950 p-10 rounded-3xl shadow-2xl flex flex-col justify-center">
+            <h2 class="text-3xl font-bold mb-3">Contact Support</h2>
+            <p class="font-medium mb-8 text-slate-800 text-sm">Tobias and the team are here to help you improve your game.</p>
+            <form id="contactForm" class="space-y-5">
+                <input type="text" placeholder="Your Name" required class="w-full p-4 rounded-xl bg-white/40 border border-white/60 placeholder:text-slate-700 outline-none focus:ring-4 focus:ring-slate-950/20 font-medium transition">
+                <input type="email" placeholder="Email Address" required class="w-full p-4 rounded-xl bg-white/40 border border-white/60 placeholder:text-slate-700 outline-none focus:ring-4 focus:ring-slate-950/20 font-medium transition">
+                <textarea rows="3" placeholder="How can we help?" required class="w-full p-4 rounded-xl bg-white/40 border border-white/60 placeholder:text-slate-700 outline-none focus:ring-4 focus:ring-slate-950/20 font-medium transition resize-none"></textarea>
+                <button type="submit" class="w-full bg-slate-950 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition shadow-lg">Send Message</button>
+                <div id="formSuccessMsg" class="hidden text-center mt-2 text-sm font-bold text-slate-900 bg-white/50 p-2 rounded">
+                    Message mock successfully sent!
+                </div>
+            </form>
+        </div>
+    </section>
+</main>
+
+<footer class="bg-slate-950 py-10 border-t border-slate-900">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="flex flex-col md:flex-row justify-between items-center text-xs text-slate-500 mb-6">
+            <p class="text-sm">&copy; 2026 ChessLense Analytics GmbH, Vienna.</p>
+            <div class="flex space-x-6 mt-4 md:mt-0 font-medium">
+                <a href="#legal" class="hover:text-sky-400 transition">Privacy Policy</a>
+                <a href="#legal" class="hover:text-sky-400 transition">EULA</a>
+            </div>
+        </div>
+
+        <div class="border-t border-slate-900 pt-6 text-[11px] text-slate-600 leading-relaxed uppercase tracking-widest">
+            Media Credits: Images via Unsplash. Chess pieces via Wikimedia (Public Domain). Layout via TailwindCSS.
+        </div>
+    </div>
+</footer>
+
+<div id="premiumModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md" aria-modal="true" role="dialog" aria-labelledby="modalTitle">
+    <div class="bg-slate-900 border border-slate-800 p-8 md:p-10 rounded-3xl max-w-md w-full mx-4 shadow-2xl relative animate-fade-up">
+        <button onclick="document.getElementById('premiumModal').classList.add('hidden')" class="absolute top-5 right-6 text-slate-400 hover:text-white text-3xl focus-visible outline-none">&times;</button>
+        <h2 id="modalTitle" class="text-3xl font-bold mb-2 text-white">Upgrade to <span class="text-sky-400">Pro</span></h2>
+        <p class="text-slate-400 mb-8 text-sm">Join Tobias and the Vienna team. <strong>€12/month</strong> for full insights.</p>
+        <form id="checkoutForm" class="space-y-4">
+            <input type="email" placeholder="Email Address" required class="w-full p-4 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:border-sky-400">
+            <input type="text" placeholder="Card Number ••••" required class="w-full p-4 rounded-xl bg-slate-800 border border-slate-700 text-white outline-none focus:border-sky-400">
+            <button type="submit" class="w-full bg-sky-400 text-slate-900 font-bold py-4 rounded-xl hover:bg-sky-300 transition shadow-lg mt-2">Subscribe Now</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.getElementById('contactForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = this.querySelector('button[type="submit"]');
+        const originalText = btn.innerText;
+        const successMsg = document.getElementById('formSuccessMsg');
+
+        btn.innerText = 'Sending...';
+
+        setTimeout(() => {
+            btn.innerText = originalText;
+            successMsg.classList.remove('hidden');
+            this.reset();
+
+            setTimeout(() => {
+                successMsg.classList.add('hidden');
+            }, 4000);
+        }, 800);
+    });
+
+    const modal = document.getElementById('premiumModal');
+    document.getElementById('checkoutForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        alert("Payment successful! Welcome to ChessLense Pro. (This is a mock response for the university task).");
+        modal.classList.add('hidden');
+        this.reset();
+    });
+
+    modal.addEventListener('click', function(e) {
+        if(e.target === this) {
+            this.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if(e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+        }
+    });
+</script>
+</body>
+</html>
